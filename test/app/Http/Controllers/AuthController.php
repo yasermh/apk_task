@@ -26,7 +26,7 @@ class AuthController extends Controller
      */
     public function login(Request $request){
     	$validator = Validator::make($request->all(), [
-            'phone_number' => 'required',
+            'phone_number' => 'required|regex:/(09)[0-9]{9}/|digits:11|numeric',
             'password' => 'required|string|min:6',
         ]);
 
@@ -48,9 +48,11 @@ class AuthController extends Controller
      */
     public function register(Request $request) {
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|between:2,100',
-            'phone_number' => 'required|string|max:100|unique:users',
+            'name' => 'required|string|regex:/^[ آابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهیئ\s]+$/|between:2,100',
+            'phone_number' => 'required|regex:/(09)[0-9]{9}/|digits:11|numeric|unique:users',
             'password' => 'required|string|min:6',
+        ],[
+            'name.regex' => 'نام و نام خانوادگی باید حروف فارسی باشد',
         ]);
 
         if($validator->fails()){
