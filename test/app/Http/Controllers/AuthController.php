@@ -1,12 +1,15 @@
 <?php
 
 namespace App\Http\Controllers;
+
+use App\Models\Token;
 use Illuminate\Http\Request;
 
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use Validator;
 use Illuminate\Support\Facades\Hash;
+use Carbon\Carbon;
 
 class AuthController extends Controller
 {
@@ -130,9 +133,19 @@ class AuthController extends Controller
             ],500);
         }
         $code=rand(10000,99999);
-        $user->update([
-            'remember_token' => Hash::make($code),
-        ]);
+        if($user->token==null){
+            $user->token()->create([
+                'token' =>  Hash::make($code),
+                'phone_number' => $user->phone_number,
+                'validity' => 2,
+                'validity_unit' => 'minute'
+            ]); 
+        }
+        else{
+            $user->token()->update([
+                'token' =>  Hash::make($code),
+            ]);
+        }
         return response()->json([
                 'message' => 'we have sent a code to your phone number.',
                 'code' =>$code
@@ -141,7 +154,7 @@ class AuthController extends Controller
     public function change_password(Request $request){
         $validator = Validator::make($request->all(), [
             'phone_number' => 'required|regex:/(09)[0-9]{9}/|digits:11|numeric',
-            'remember_token' => 'required|digits:5|numeric',
+            'token' => 'required|digits:5|numeric',
             'password' =>'required|string|min:6'
         ]);
         if($validator->fails()){
@@ -153,24 +166,27 @@ class AuthController extends Controller
                 'message' => 'phone number does not exist.'
             ],500);
         }
-        if(Hash::check($request->remember_token, $user->remember_token, [])) {
-            $user->password = Hash::make($request->password);
-            $user->save();
-            return response()->json('User password change successfully', 200);
-
+        $user_token=$user->token;
+        if($this->CheckValid($user_token)){
+            if(Hash::check($request->token, $user_token->token, [])) {
+                $user->password = Hash::make($request->password);
+                $user->save();
+                return response()->json('User password change successfully', 200);
+            }
         }
         return response()->json(['error' => 'code is not valid'], 500);
     }
-    public function password(Request $request){
-        $validator = Validator::make($request->all(), [
-            'password' => 'required|string|min:6|max:20|confirmed',
-        ]);
-        if($validator->fails()){
-            return response()->json($validator->errors()->toJson(), 400);
+
+    public function CheckValid($token)
+    {
+        $token_date_time = $token->updated_at;
+        $token_validity = strtotime($token->validity . " " . $token->validity_unit, 0);
+        $current_date_time = Carbon::now()->toDateTimeString();
+        $diff = abs(strtotime($current_date_time) - strtotime($token_date_time));
+        if ($diff > $token_validity) {
+            return false;
+        } else {
+            return true;
         }
-        $user=auth()->user();
-        $user->password =bcrypt($request['password']);
-
     }
-
 }
